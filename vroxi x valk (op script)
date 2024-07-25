@@ -1,0 +1,125 @@
+-- VROXIxVALK
+
+getgenv().Key = Enum.KeyCode.C
+getgenv().Prediction = 0.13155335325532
+getgenv().Pred2 = .1323113
+getgenv().Partz = "HumanoidRootPart"
+getgenv().SmoothingValue = 0.035622224634
+getgenv().DisableOnTargetDeath = true
+getgenv().DisableOnPlayerDeath = true
+getgenv().CheckIfKo = true
+
+    
+local Locking = false
+local OldAimPart = getgenv().Partz
+-- // Locals
+
+local Players, Uis, RService, Inset, CurrentCamera = 
+game:GetService("Players"), 
+game:GetService("UserInputService"), 
+game:GetService("RunService"),
+game:GetService("GuiService"):GetGuiInset().Y,
+game:GetService("Workspace").CurrentCamera
+
+local Client = Players.LocalPlayer;
+
+
+local UserInputService = game:GetService("UserInputService")
+UserInputService.InputBegan:Connect(function(keygo, ok)
+    if (not ok) then
+        if (keygo.KeyCode == getgenv().Key) then
+            Locking = not Locking
+            if Locking then
+                Plr =  getClosestPlayerToCursor()
+            elseif not Locking then
+                if Plr then
+                    Plr = nil
+                end
+            end
+        end
+    end
+end)
+
+function getClosestPlayerToCursor()
+    closestDist = math.huge
+    closestPlr = nil;
+    for i, v in next, game.Players:GetPlayers() do
+        pcall(function()
+            local notKO = v.Character:WaitForChild("BodyEffects")["K.O"].Value ~= true;
+            local notGrabbed = v.Character:FindFirstChild("GRABBING_COINSTRAINT") == nil
+            if v ~= game.Players.LocalPlayer and v.Character and v.Character.Humanoid.Health > 0 then
+                local screenPos, cameraVisible = workspace.CurrentCamera:WorldToViewportPoint(v.Character.HumanoidRootPart.Position)
+                if cameraVisible then
+                    local distToMouse = (Vector2.new(game.Players.LocalPlayer:GetMouse().X, game.Players.LocalPlayer:GetMouse().Y) - Vector2.new(screenPos.X, screenPos.Y)).Magnitude
+                    if distToMouse < closestDist then
+                        closestPlr = v
+                        closestDist = distToMouse
+                    end
+                end
+            end
+        end)
+    end
+    return closestPlr, closestDist
+end
+
+local rawmetatable = getrawmetatable(game)
+local old = rawmetatable.__namecall
+setreadonly(rawmetatable, false)
+rawmetatable.__namecall = newcclosure(function(...)
+    local args = {
+        ...
+    }
+    if Plr ~= nil  and getnamecallmethod() == "FireServer" and args[2] == "UpdateMousePosI" then
+        args[3] = Plr.Character[getgenv().Partz].Position + (Plr.Character[getgenv().Partz].Velocity * Prediction)
+        return old(unpack(args))
+    end
+    return old(...)
+end)
+
+
+game:GetService("RunService").RenderStepped:connect(function()
+    if Plr ~= nil then
+        local Main = CFrame.new(workspace.CurrentCamera.CFrame.p, Plr.Character[getgenv().Partz].Position + Plr.Character[getgenv().Partz].Velocity * getgenv().Pred2)
+        workspace.CurrentCamera.CFrame = workspace.CurrentCamera.CFrame:Lerp(Main, getgenv().SmoothingValue, Enum.EasingStyle.Elastic, Enum.EasingDirection.InOut)
+    end
+            if getgenv().CheckIfKo == true and Plr and Plr.Character then
+            local KOd = Plr.Character:WaitForChild("BodyEffects")["K.O"].Value
+            local Grabbed = Plr.Character:FindFirstChild("GRABBING_CONSTRAINT") ~= nil
+            if Plr.Character.Humanoid.health < 1 or KOd or Grabbed then
+                if Locking == true then
+                    Plr = nil
+                    Locking = false
+                end
+            end
+        end
+        if
+            getgenv().DisableOnTargetDeath == true and Plr and
+                Plr.Character:FindFirstChild("Humanoid")
+         then
+            if Plr.Character.Humanoid.health < 1 then
+                if Locking == true then
+                    Plr = nil
+                    Locking = false
+                end
+            end
+        end
+        if
+            getgenv().DisableOnPlayerDeath == true and Client.Character and
+                Client.Character:FindFirstChild("Humanoid") and
+                Client.Character.Humanoid.health < 1
+         then
+            if Locking == true then
+                Plr = nil
+                Locking = false
+            end
+        end
+        if CheckIfJumped == true then
+       if Plr.Character.Humanoid.FloorMaterial == Enum.Material.Air then
+    
+           getgenv().AimPart = "HumanoidRootPart"
+       else
+         getgenv().AimPart = getgenv().OldAimPart
+
+       end
+    end
+end)
