@@ -1,6 +1,6 @@
 getgenv().DNS = {
     General = {
-        Notifications = true,
+        Notifications = false,
         FOVMode = "PredictionPoint"
     },
     Silent = {
@@ -13,7 +13,7 @@ getgenv().DNS = {
         },
         FOV = {
             ShowFOV = false,
-            Radius = 4,
+            Radius = 5,
             Color = Color3.fromRGB(0, 71, 171),
             Filled = false,
             Transparency = 0.8
@@ -25,9 +25,9 @@ getgenv().DNS = {
             Key = "C",
             UnlockKey = "E",
             SmoothLock = true,
-            Smoothness = 0.0292845,
+            Smoothness = 0.0192845,
             PredictMovement = true,
-            Prediction = 0.142,
+            Prediction = 0.12,
             Shake = true,
             ShakeValue = 3,
             Parts = {"UpperTorso" ,"Head"}
