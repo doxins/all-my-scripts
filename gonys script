@@ -1,0 +1,213 @@
+-- Configuration
+getgenv().Key = Enum.KeyCode.C
+getgenv().Prediction = 0.16
+getgenv().Pred2 = 0.14
+getgenv().Partz = "HumanoidRootPart"
+getgenv().AirPartz = "RightLowerLeg"
+getgenv().SmoothingValue = 0.01999943634637735476484647624145
+getgenv().DisableOnTargetDeath = true
+getgenv().DisableOnPlayerDeath = true
+getgenv().CheckIfKo = true
+getgenv().WallCheck = false
+getgenv().ResolverKey = Enum.KeyCode.X
+getgenv().ShakeValue = 1
+getgenv().JumpOffest = -1
+
+getgenv().spin = {
+    Spin = {
+        ["Toggle"] = true,
+        ["RotationSpeed"] = 3670,
+        ["Keybind"] = Enum.KeyCode.V
+    }
+}
+
+-- State variables
+local Locking = false
+local Resolving = false
+local UserInputService = game:GetService("UserInputService")
+local Players = game:GetService("Players")
+local Client = Players.LocalPlayer
+local Camera = workspace.CurrentCamera
+local Plr = nil
+local v = nil
+
+-- Function to create a notification
+local function createNotification(text)
+    game.StarterGui:SetCore("SendNotification", {
+        Title = "resolver",
+        Text = text,
+        Duration = 3
+    })
+end
+
+-- Spin functionality
+local function OnKeyPress(Input, GameProcessedEvent)
+    if Input.KeyCode == getgenv().spin.Spin.Keybind and not GameProcessedEvent then 
+        getgenv().spin.Spin.Toggle = not getgenv().spin.Spin.Toggle
+    end
+end
+
+UserInputService.InputBegan:Connect(OnKeyPress)
+
+local LastRenderTime = 0
+local FullCircleRotation = 2 * math.pi
+local TotalRotation = 0
+
+local function RotateCamera()
+    if getgenv().spin.Spin.Toggle then
+        local CurrentTime = tick()
+        local TimeDelta = math.min(CurrentTime - LastRenderTime, 0.01)
+        LastRenderTime = CurrentTime
+
+        local Rotation = CFrame.fromAxisAngle(Vector3.new(0, 1, 0), math.rad(getgenv().spin.Spin.RotationSpeed * TimeDelta))
+        Camera.CFrame = Camera.CFrame * Rotation
+
+        TotalRotation = TotalRotation + math.rad(getgenv().spin.Spin.RotationSpeed * TimeDelta)
+        if TotalRotation >= FullCircleRotation then
+            getgenv().spin.Spin.Toggle = false
+            TotalRotation = 0
+        end
+    end
+end
+
+game:GetService("RunService").RenderStepped:Connect(RotateCamera)
+
+UserInputService.InputBegan:Connect(function(keygo, ok)
+    if not ok then
+        if keygo.KeyCode == getgenv().Key then
+            Locking = not Locking
+            if Locking then
+                Plr = getClosestPlayerToCursor()
+            else
+                Plr = nil
+            end
+        elseif keygo.KeyCode == getgenv().ResolverKey then
+            Resolving = not Resolving
+            if Resolving then
+                createNotification("Resolver: On")
+            else
+                createNotification("Resolver: Off")
+            end
+        end
+    end
+end)
+
+function wallCheck(player)
+    if getgenv().WallCheck then
+        local Origin = Camera.CFrame.p
+        local CheckRay = Ray.new(Origin, player.Character.HumanoidRootPart.Position - Origin)
+        local Hit = workspace:FindPartOnRayWithIgnoreList(CheckRay, {Client, player.Character})
+        return Hit == nil
+    else
+        return true
+    end
+end
+
+function getClosestPlayerToCursor()
+    local closestDist = math.huge
+    local closestPlr = nil
+    local mousepos = UserInputService:GetMouseLocation()
+    for _, v in ipairs(Players:GetPlayers()) do
+        pcall(function()
+            if v ~= Client and v.Character and v.Character.Humanoid.Health > 0 then
+                local screenPos, cameraVisible = workspace.CurrentCamera:WorldToViewportPoint(v.Character.HumanoidRootPart.Position)
+                if cameraVisible and wallCheck(v) then
+                    local distToMouse = (mousepos - Vector2.new(screenPos.X, screenPos.Y)).Magnitude
+                    if distToMouse < closestDist then
+                        closestPlr = v
+                        closestDist = distToMouse
+                    end
+                end
+            end
+        end)
+    end
+    return closestPlr, closestDist
+end
+
+local function getVelocity(Player)
+    local Old = Player.Character.HumanoidRootPart.Position
+    wait(0.145)
+    local Current = Player.Character.HumanoidRootPart.Position
+    return (Current - Old) / 0.145
+end
+
+local function GetShakedVector3(Setting)
+    return Vector3.new(math.random(-Setting * 1e9, Setting * 1e9), math.random(-Setting * 1e9, Setting * 1e9), math.random(-Setting * 1e9, Setting * 1e9)) / 1e9
+end
+
+game:GetService("RunService").Heartbeat:Connect(function(deltaTime)
+    if Plr and Plr.Character and Plr.Character:FindFirstChild("HumanoidRootPart") then
+        v = getVelocity(Plr)
+    end
+end)
+
+local mainevent = game:GetService("ReplicatedStorage").MainEvent
+
+Client.Character.ChildAdded:Connect(function(child)
+    if child:IsA("Tool") and child:FindFirstChild("MaxAmmo") then
+        child.Activated:Connect(function()
+            if Plr and Plr.Character then
+                local Position = Plr.Character.Humanoid:GetState() == Enum.HumanoidStateType.Freefall and Plr.Character[getgenv().AirPartz].Position + Vector3.new(0, getgenv().JumpOffest, 0) or Plr.Character[getgenv().Partz].Position
+                mainevent:FireServer("UpdateMousePosI", Position + ((Resolving and v or Plr.Character.HumanoidRootPart.Velocity) * getgenv().Prediction))
+            end
+        end)
+    end
+end)
+
+Client.CharacterAdded:Connect(function(character)
+    character.ChildAdded:Connect(function(child)
+        if child:IsA("Tool") and child:FindFirstChild("MaxAmmo") then
+            child.Activated:Connect(function()
+                if Plr and Plr.Character then
+                    local Position = Plr.Character.Humanoid:GetState() == Enum.HumanoidStateType.Freefall and Plr.Character[getgenv().AirPartz].Position + Vector3.new(0, getgenv().JumpOffest, 0) or Plr.Character[getgenv().Partz].Position
+                    mainevent:FireServer("UpdateMousePosI", Position + ((Resolving and v or Plr.Character.HumanoidRootPart.Velocity) * getgenv().Prediction))
+                end
+            end)
+        end
+    end)
+end)
+
+game:GetService("RunService").RenderStepped:Connect(function()
+    if getgenv().CheckIfKo and Plr and Plr.Character then
+        local KOd = Plr.Character:WaitForChild("BodyEffects")["K.O"].Value
+        local Grabbed = Plr.Character:FindFirstChild("GRABBING_CONSTRAINT") ~= nil
+        if Plr.Character.Humanoid.Health < 1 or KOd or Grabbed then
+            if Locking then
+                Plr = nil
+                Locking = false
+            end
+        end
+    end
+    if getgenv().DisableOnTargetDeath and Plr and Plr.Character:FindFirstChild("Humanoid") then
+        if Plr.Character.Humanoid.Health < 1 then
+            if Locking then
+                Plr = nil
+                Locking = false
+            end
+        end
+    end
+    if getgenv().DisableOnPlayerDeath and Client.Character and Client.Character:FindFirstChild("Humanoid") and Client.Character.Humanoid.Health < 1 then
+        if Locking then
+            Plr = nil
+            Locking = false
+        end
+    end
+    if getgenv().WallCheck and not (Plr and Plr.Character and wallCheck(Plr)) then
+        if Locking then
+            Plr = nil
+            Locking = false
+        end
+    end
+    if getgenv().CheckIfJumped and Plr then
+        if Plr.Character.Humanoid.FloorMaterial == Enum.Material.Air then
+            getgenv().AimPart = "HumanoidRootPart"
+        else
+            getgenv().AimPart = getgenv().OldAimPart
+        end
+    end
+    if Plr and Locking then
+        local Position = Plr.Character.Humanoid:GetState() == Enum.HumanoidStateType.Freefall and Plr.Character[getgenv().AirPartz].Position + Vector3.new(0, getgenv().JumpOffest, 0) or Plr.Character[getgenv().Partz].Position
+        local Main = CFrame.new(workspace.CurrentCamera.CFrame.p, Position + ((Resolving and v or Plr.Character.HumanoidRootPart.Velocity) * getgenv().Pred2) + GetShakedVector3(getgenv().ShakeValue))
+        workspace.CurrentCamera.CFrame = workspace.CurrentCamera.CFrame:Lerp(Main, getgenv().SmoothingValue, Enum.EasingStyle.Elastic, Enum.EasingDirection.InOut)
+    end
+end)
