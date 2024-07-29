@@ -8,12 +8,12 @@ getgenv().DNS = {
             Enabled = true,
             Mode = "Target",
             Toggle = "P",
-            Prediction = 0.1416,
+            Prediction = 0.1296,
             Parts = {"Head" ,"LowerTorso","UpperTorso" ,"HumanoidRootPart" ,"RightLowerArm" ,"LeftLowerArm" ,"RightLowerLeg" ,"LeftLowerLeg"}
         },
         FOV = {
             ShowFOV = false,
-            Radius = 5,
+            Radius = 4,
             Color = Color3.fromRGB(0, 71, 171),
             Filled = false,
             Transparency = 0.8
@@ -25,11 +25,11 @@ getgenv().DNS = {
             Key = "C",
             UnlockKey = "E",
             SmoothLock = true,
-            Smoothness = 0.0192845,
+            Smoothness = 0.0292845,
             PredictMovement = true,
             Prediction = 0.12,
             Shake = true,
-            ShakeValue = 3,
+            ShakeValue = 0,
             Parts = {"UpperTorso" ,"Head"}
         },
         FOV = {
@@ -77,10 +77,10 @@ ping20_30 = 0.112,
 
 
 local function getnamecall()
-    if game.PlaceId == 2788229376 then
+    if game.PlaceId == 17723797487 then
         return "UpdateMousePosI"
-    elseif game.PlaceId == 5602055394 or game.PlaceId == 7951883376 then
-        return "MousePosI"
+    elseif game.PlaceId == 2788229376 or game.PlaceId == 7951883376 then
+        return "UpdateMousePosI"
     elseif game.PlaceId == 9825515356 then
         return "GetMousePosI"
     end
