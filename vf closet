@@ -74,14 +74,14 @@ shared.Saved = {
 			['FOV'] = {
 				['Enabled'] = true,
 				['Visible'] = false,
-				['Radius'] = 7,
+				['Radius'] = 14,
 				['Filled'] = false,
 			},
 			['HitPart'] = "Closest Point",
 			['Prediction'] = {
 				['Enabled'] = true,
-				['AutoPing'] = true,
-				['BasePrediction'] = 0.133,
+				['AutoPing'] = false,
+				['BasePrediction'] = 0.123,
 			},
 			['WallCheck'] = true,
 			['KnockedCheck'] = true,
@@ -104,9 +104,9 @@ shared.Saved = {
 		},
 
 		['Prediction'] = {
-			['X'] = 0.1122,
-			['Y'] = 0.1122,
-			['Z'] = 0.1122
+			['X'] = 0.123,
+			['Y'] = 0.123,
+			['Z'] = 0.123
 		},
 
 		['Activation'] = {
@@ -1896,6 +1896,7 @@ local function initStandaloneSilentAim()
 
     local function b162()
         local lastCameraUpdate = 0
+        local lastTargetUpdate = 0
         
         State.Connections.Heartbeat = b2.Heartbeat:Connect(function()
             local now = tick()
@@ -1903,21 +1904,24 @@ local function initStandaloneSilentAim()
             -- Update FOV circle every frame (needed for smooth movement)
             b110()
             
-            -- Update camera look vector every 0.1 seconds (less frequent)
+            -- Update camera look vector every 0.1 seconds
             if now - lastCameraUpdate >= 0.1 then
                 b77()
                 lastCameraUpdate = now
             end
             
-            -- Update target every frame when enabled
-            if Config.Enabled then
-                local b153, b138 = b125()
-                State.Target = b153
-                State.TargetPart = b138
-                
-                if b153 then
-                    b132(b153)
+            -- Update target every 0.05 seconds (20 times per second) to save FPS
+            if now - lastTargetUpdate >= 0.05 then
+                if Config.Enabled then
+                    local b153, b138 = b125()
+                    State.Target = b153
+                    State.TargetPart = b138
+                    
+                    if b153 then
+                        b132(b153)
+                    end
                 end
+                lastTargetUpdate = now
             end
         end)
     end
