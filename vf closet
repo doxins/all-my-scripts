@@ -74,13 +74,13 @@ shared.Saved = {
 			['FOV'] = {
 				['Enabled'] = true,
 				['Visible'] = false,
-				['Radius'] = 14,
+				['Radius'] = 120,
 				['Filled'] = false,
 			},
 			['HitPart'] = "Closest Point",
 			['Prediction'] = {
 				['Enabled'] = true,
-				['AutoPing'] = false,
+				['AutoPing'] = true,
 				['BasePrediction'] = 0.123,
 			},
 			['WallCheck'] = true,
@@ -89,6 +89,7 @@ shared.Saved = {
 			['HealthCheck'] = true,
 			['HealthThreshold'] = 4,
 			['MaxDistance'] = 500,
+			['AntiAimViewer'] = true,
 		},
 	},
 
@@ -296,6 +297,7 @@ local spreadModActive = true
 local silentTarget = nil
 local silentTargetPart = nil
 local silentCachedMousePos = Vector2.new()
+local silentRealMousePos = Vector2.new() -- Store real mouse position for silent aim
 local silentLastMouseUpdate = 0
 local silentIsDesync = false
 local silentIsGroundShot = false
@@ -536,9 +538,10 @@ end)
 -- ───────────────────────────────────────────────────────────────
 -- Mouse in Trigger Box Check: Checks if mouse is within trigger bot box
 -- ───────────────────────────────────────────────────────────────
-local isMouseInTriggerBox = LPH_NO_VIRTUALIZE(function()
-    if not lockedPlayer or not lockedPlayer.Character then return false end
-    local root = lockedPlayer.Character:FindFirstChild("HumanoidRootPart")
+local isMouseInTriggerBox = LPH_NO_VIRTUALIZE(function(targetPlayer)
+    local player = targetPlayer or lockedPlayer
+    if not player or not player.Character then return false end
+    local root = player.Character:FindFirstChild("HumanoidRootPart")
     if not root then return false end
     local fov = shared.Saved['Trigger Bot'].FOV
     local half = Vector3.new(fov.X or 0, fov.Y or 0, fov.Z or 0) / 2
@@ -784,14 +787,17 @@ local function silentGetDistanceToMouse(position)
         return math.huge
     end
     
-    return (screenPos - silentCachedMousePos).Magnitude
+    -- Get real mouse position directly to ensure accuracy
+    local realMousePos = UserInputService:GetMouseLocation()
+    local mousePos = Vector2.new(realMousePos.X, realMousePos.Y + game:GetService("GuiService"):GetGuiInset().Y)
+    
+    return (screenPos - mousePos).Magnitude
 end
 
 local function silentCheckFOV(position)
     local silentConfig = shared.Saved['Camera Aimbot']['Silent Aim']
-    local fovRadius = silentGetFOV()
-    local distance = silentGetDistanceToMouse(position)
-    return distance <= (fovRadius * 3)
+    -- Always return true for silent aim - work without FOV restriction
+    return true
 end
 
 local function silentCheckWall(part)
@@ -829,10 +835,34 @@ end
 
 local function silentFindTargetPart(character)
     local silentConfig = shared.Saved['Camera Aimbot']['Silent Aim']
+    local hitPart = silentConfig.HitPart
+    
+    -- If specific part is set, return that part directly
+    if hitPart and hitPart ~= "Closest Point" then
+        local part = character:FindFirstChild(hitPart)
+        if part and silentIsValidPart(part) then
+            if silentCheckWall(part) and silentCheckFOV(part.Position) then
+                return part
+            end
+        end
+        return nil
+    end
+    
+    -- Otherwise find closest point on character
     local bestPart = nil
     local bestDist = math.huge
     
-    for _, partName in ipairs(silentConfig.TargetParts) do
+    -- All body parts to check for closest point
+    local allParts = {
+        "Head", "UpperTorso", "LowerTorso",
+        "LeftUpperArm", "LeftLowerArm", "LeftHand",
+        "RightUpperArm", "RightLowerArm", "RightHand",
+        "LeftUpperLeg", "LeftLowerLeg", "LeftFoot",
+        "RightUpperLeg", "RightLowerLeg", "RightFoot",
+        "HumanoidRootPart"
+    }
+    
+    for _, partName in ipairs(allParts) do
         local part = character:FindFirstChild(partName)
         
         if part and silentIsValidPart(part) then
@@ -852,11 +882,27 @@ end
 
 local function silentGetNearestPoint(part)
     local silentConfig = shared.Saved['Camera Aimbot']['Silent Aim']
-    if not part or not silentConfig.NearestPoint then
-        return part.Position
+    if not part then
+        return nil
     end
     
-    local mouseHit = Mouse.Hit.Position
+    -- Always calculate nearest point since HitPart is "Closest Point"
+    -- Use real mouse position to calculate hit (bypasses Mouse hook)
+    local realMousePos = UserInputService:GetMouseLocation()
+    local ray = Camera:ScreenPointToRay(realMousePos.X, realMousePos.Y)
+    local raycastParams = RaycastParams.new()
+    raycastParams.FilterType = Enum.RaycastFilterType.Exclude
+    raycastParams.FilterDescendantsInstances = {LocalPlayer.Character, Camera}
+    raycastParams.IgnoreWater = true
+    local result = Workspace:Raycast(ray.Origin, ray.Direction * 1000, raycastParams)
+    
+    local mouseHit
+    if result then
+        mouseHit = result.Position
+    else
+        mouseHit = ray.Origin + ray.Direction * 1000
+    end
+    
     local halfSize = part.Size * 0.5
     local relativePos = part.CFrame:PointToObjectSpace(mouseHit)
     
@@ -1032,13 +1078,86 @@ local function silentUpdateFOVCircle()
     end
     
     local silentConfig = shared.Saved['Camera Aimbot']['Silent Aim']
-    local mousePos = Vector2.new(Mouse.X, Mouse.Y + game:GetService("GuiService"):GetGuiInset().Y)
+    -- Use UserInputService to get real mouse position (bypasses Mouse hook)
+    local realMousePos = UserInputService:GetMouseLocation()
+    local mousePos = Vector2.new(realMousePos.X, realMousePos.Y + game:GetService("GuiService"):GetGuiInset().Y)
     local fovRadius = silentGetFOV()
     
+    -- Store real mouse position for silent aim calculations
+    silentRealMousePos = mousePos
     silentCachedMousePos = mousePos
+    
+    -- FOV circle follows the real cursor position
     silentFOVCircle.Position = mousePos
     silentFOVCircle.Radius = fovRadius * 3
     silentFOVCircle.Visible = silentConfig.FOV.Visible and silentConfig.Enabled
+end
+
+-- ───────────────────────────────────────────────────────────────
+-- Anti AimView: Spoof mouse position for external aimview tools
+-- ───────────────────────────────────────────────────────────────
+local spoofedMousePos = Vector2.new()
+local lastSpoofUpdate = 0
+
+local function getSpoofedMousePosition()
+    local silentConfig = shared.Saved['Camera Aimbot']['Silent Aim']
+    if not silentConfig.AntiAimViewer then
+        return Vector2.new(Mouse.X, Mouse.Y)
+    end
+    
+    local now = tick()
+    if now - lastSpoofUpdate < 0.016 then
+        return spoofedMousePos
+    end
+    lastSpoofUpdate = now
+    
+    -- Project camera look direction to screen position
+    local cameraPos = Camera.CFrame.Position
+    local lookDir = Camera.CFrame.LookVector
+    local targetPos = cameraPos + (lookDir * 100)
+    
+    local screenPos, onScreen = Camera:WorldToViewportPoint(targetPos)
+    if onScreen then
+        spoofedMousePos = Vector2.new(screenPos.X, screenPos.Y)
+    else
+        spoofedMousePos = Vector2.new(Mouse.X, Mouse.Y)
+    end
+    
+    return spoofedMousePos
+end
+
+-- Hook Mouse properties to return spoofed position for external tools
+local oldMouseX = Mouse.X
+local oldMouseY = Mouse.Y
+
+-- Hook getMousePosition to return spoofed position
+local originalGetMousePosition = getMousePosition
+getMousePosition = function()
+    local silentConfig = shared.Saved['Camera Aimbot']['Silent Aim']
+    if silentConfig.AntiAimViewer then
+        local spoofed = getSpoofedMousePosition()
+        return spoofed.X, spoofed.Y
+    end
+    return originalGetMousePosition()
+end
+
+-- Hook Mouse index metamethod to spoof X and Y properties
+local mouseMeta = getrawmetatable(Mouse)
+if mouseMeta then
+    local oldMouseIndex = mouseMeta.__index
+    setreadonly(mouseMeta, false)
+    mouseMeta.__index = LPH_NO_VIRTUALIZE(function(self, key)
+        local silentConfig = shared.Saved['Camera Aimbot']['Silent Aim']
+        if silentConfig.AntiAimViewer then
+            if key == "X" then
+                return getSpoofedMousePosition().X
+            elseif key == "Y" then
+                return getSpoofedMousePosition().Y
+            end
+        end
+        return oldMouseIndex(self, key)
+    end)
+    setreadonly(mouseMeta, true)
 end
 
 -- ───────────────────────────────────────────────────────────────
@@ -1158,6 +1277,29 @@ local DeepFakePosition = loadstring(game:HttpGet("https://raw.githubusercontent.
 _G.FetchPosition = DeepFakePosition
 
 -- ───────────────────────────────────────────────────────────────
+-- Hook _G.FetchPosition to return spoofed position for anti-aimview
+-- ───────────────────────────────────────────────────────────────
+local originalFetchPosition = _G.FetchPosition
+_G.FetchPosition = function()
+    local silentConfig = shared.Saved['Camera Aimbot']['Silent Aim']
+    if silentConfig.AntiAimViewer then
+        local spoofed = getSpoofedMousePosition()
+        local ray = Camera:ScreenPointToRay(spoofed.X, spoofed.Y)
+        local raycastParams = RaycastParams.new()
+        raycastParams.FilterType = Enum.RaycastFilterType.Blacklist
+        raycastParams.FilterDescendantsInstances = {LocalPlayer.Character}
+        raycastParams.IgnoreWater = true
+        local result = workspace:Raycast(ray.Origin, ray.Direction * 1000, raycastParams)
+        if result then
+            return result.Position
+        else
+            return ray.Origin + ray.Direction * 1000
+        end
+    end
+    return originalFetchPosition()
+end
+
+-- ───────────────────────────────────────────────────────────────
 -- Obfuscated Hook Section: Sets up metamethod hook for namecall to update mouse pos
 -- ───────────────────────────────────────────────────────────────
 task.wait()
@@ -1211,66 +1353,8 @@ else
     warn("[Silent Aim] Remote found: " .. tostring(SilentRemote ~= nil))
 end
 
-local ChinaHook
-ChinaHook = hookmetamethod(game, "__namecall", LPH_NO_VIRTUALIZE(function(self, ...)
-    local ChinaArgs = {...}
-    local DeportationMethod = getnamecallmethod()
-    
-    -- Get target argument and remote name based on current game
-    local targetArg = DEFAULT_ARG
-    local targetRemote = DEFAULT_REMOTE
-    
-    if CurrentGame then
-        targetArg = CurrentGame.Argument
-        targetRemote = CurrentGame.Remote
-    end
-    
-    -- Check if this is the mouse position update remote call
-    if not checkcaller()
-    and DeportationMethod == "FireServer"
-    and (self.Name == targetRemote or self.Name == "MainEvent")
-    and ChinaArgs[1] == targetArg then
-        
-        local silentConfig = shared.Saved['Camera Aimbot']['Silent Aim']
-        
-        -- Silent Aim: Send predicted position when enabled and target found
-        if silentConfig and silentConfig.Enabled and silentTarget and silentTargetPart then
-            if silentCheckHitChance() then
-                local predictedPos = silentApplyPrediction(silentTarget, silentTargetPart)
-                
-                if predictedPos then
-                    if silentCheckAntiAim(predictedPos) then
-                        -- Debug: Print when silent aim is applied (throttled)
-                        if tick() % 2 < 0.05 then
-                            warn("[Silent Aim] Applied to: " .. silentTarget.Name .. " | Predicted pos: " .. tostring(predictedPos))
-                        end
-                        ChinaArgs[2] = predictedPos
-                        return self.FireServer(self, unpack(ChinaArgs))
-                    end
-                end
-            end
-        end
-        
-        -- Fallback: Send legit mouse position
-        if _G.FetchPosition then
-            ChinaArgs[2] = _G.FetchPosition()
-        else
-            local mouseRay = Camera:ScreenPointToRay(Mouse.X, Mouse.Y)
-            local raycastParams = RaycastParams.new()
-            raycastParams.FilterType = Enum.RaycastFilterType.Blacklist
-            raycastParams.FilterDescendantsInstances = {LocalPlayer.Character}
-            raycastParams.IgnoreWater = true
-            local result = workspace:Raycast(mouseRay.Origin, mouseRay.Direction * 1000, raycastParams)
-            if result then
-                ChinaArgs[2] = result.Position
-            else
-                ChinaArgs[2] = mouseRay.Origin + mouseRay.Direction * 1000
-            end
-        end
-        return self.FireServer(self, unpack(ChinaArgs))
-    end
-    return ChinaHook(self, ...)
-end))
+-- Main namecall hook disabled - standalone module handles silent aim firing
+-- The main hook was causing conflicts with the standalone module
 
 -- ───────────────────────────────────────────────────────────────
 -- Silent Aim Tool Activation (for auto-shoot)
@@ -1329,6 +1413,18 @@ end
 LocalPlayer.CharacterAdded:Connect(silentSetupCharacter)
 
 -- ───────────────────────────────────────────────────────────────
+-- Main Silent Aim Update Loop: Updates FOV circle only
+-- (Standalone module handles target selection and firing)
+-- ───────────────────────────────────────────────────────────────
+RunService.Heartbeat:Connect(LPH_NO_VIRTUALIZE(function()
+    -- Update FOV circle
+    silentUpdateFOVCircle()
+    
+    -- Update camera look vector for anti-aimviewer
+    silentUpdateCameraLookVector()
+end))
+
+-- ───────────────────────────────────────────────────────────────
 -- Standalone Silent Aim Module (from original script)
 -- ───────────────────────────────────────────────────────────────
 local function initStandaloneSilentAim()
@@ -1375,7 +1471,10 @@ local function initStandaloneSilentAim()
         Target = nil,
         TargetPart = nil,
         CachedMousePos = Vector2.new(),
+        RealMousePos = Vector2.new(), -- Store real mouse for silent aim
+        SpoofedMousePos = Vector2.new(), -- Spoofed for external tools
         LastMouseUpdate = 0,
+        LastSpoofUpdate = 0,
         IsDesync = false,
         IsGroundShot = false,
         IsUpVelocity = false,
@@ -1450,6 +1549,32 @@ local function initStandaloneSilentAim()
     local function b75()
         -- GunFOV is removed, always use default radius from config
         return Config.FOV.Radius
+    end
+
+    local function getSpoofedMousePosition()
+        if not Config.AntiAimViewer then
+            return Vector2.new(b11.X, b11.Y)
+        end
+        
+        local now = tick()
+        if now - State.LastSpoofUpdate < 0.016 then
+            return State.SpoofedMousePos
+        end
+        State.LastSpoofUpdate = now
+        
+        -- Project camera look direction to screen position
+        local cameraPos = b10.CFrame.Position
+        local lookDir = b10.CFrame.LookVector
+        local targetPos = cameraPos + (lookDir * 100)
+        
+        local screenPos, onScreen = b10:WorldToViewportPoint(targetPos)
+        if onScreen then
+            State.SpoofedMousePos = Vector2.new(screenPos.X, screenPos.Y)
+        else
+            State.SpoofedMousePos = Vector2.new(b11.X, b11.Y)
+        end
+        
+        return State.SpoofedMousePos
     end
 
     local function b77()
@@ -1540,17 +1665,16 @@ local function initStandaloneSilentAim()
             return math.huge
         end
         
-        return (b99 - State.CachedMousePos).Magnitude
+        -- Get real mouse position directly to ensure accuracy
+        local realMousePos = b3:GetMouseLocation()
+        local mousePos = Vector2.new(realMousePos.X, realMousePos.Y + b5:GetGuiInset().Y)
+        
+        return (b99 - mousePos).Magnitude
     end
 
     local function b100(b95)
-        if not Config.FOV.Enabled then
-            return true
-        end
-        
-        local b101 = b75()
-        local b102 = b98(b95)
-        return b102 <= (b101 * 3)
+        -- Always return true for silent aim - work without FOV restriction
+        return true
     end
 
     local function b103(b104)
@@ -1601,10 +1725,15 @@ local function initStandaloneSilentAim()
             return
         end
         
-        local b111 = Vector2.new(b11.X, b11.Y + b5:GetGuiInset().Y)
+        -- Use UserInputService to get real mouse position (bypasses Mouse hook)
+        local realMousePos = b3:GetMouseLocation()
+        local b111 = Vector2.new(realMousePos.X, realMousePos.Y + b5:GetGuiInset().Y)
         local b101 = b75()
-        State.CachedMousePos = Vector2.new(b11.X, b11.Y + b5:GetGuiInset().Y)
+        -- Store real mouse position for silent aim calculations
+        State.RealMousePos = Vector2.new(realMousePos.X, realMousePos.Y + b5:GetGuiInset().Y)
+        State.CachedMousePos = Vector2.new(realMousePos.X, realMousePos.Y + b5:GetGuiInset().Y)
 
+        -- FOV circle follows the real cursor position
         State.FOVCircle.Position = b111
         State.FOVCircle.Radius = b101 * 3
         State.FOVCircle.Visible = true
@@ -1621,7 +1750,28 @@ local function initStandaloneSilentAim()
     end
 
     local function b113(b86)
-        -- HitPart is now a single option, default to finding closest point on character
+        local hitPart = Config.HitPart
+        
+        -- If specific part is set, return that part directly
+        if hitPart and hitPart ~= "Closest Point" then
+            local b104 = b86:FindFirstChild(hitPart)
+            if b104 and b112(b104) then
+                local wallCheck = Config.WallCheck
+                local fovEnabled = Config.FOV.Enabled
+                
+                -- Check wall and FOV
+                if wallCheck and not b103(b104) then
+                    return nil
+                end
+                if fovEnabled and not b100(b104.Position) then
+                    return nil
+                end
+                return b104
+            end
+            return nil
+        end
+        
+        -- Otherwise find closest point on character
         local b114 = nil
         local b115 = math.huge
         
@@ -1666,7 +1816,22 @@ local function initStandaloneSilentAim()
 
     local function b117(b104)
         -- NearestPoint is always enabled with HitPart = "Closest Point"
-        local b118 = b11.Hit.Position
+        -- Use real mouse position to calculate hit (bypasses Mouse hook)
+        local realMousePos = b3:GetMouseLocation()
+        local ray = b10:ScreenPointToRay(realMousePos.X, realMousePos.Y)
+        local raycastParams = RaycastParams.new()
+        raycastParams.FilterType = Enum.RaycastFilterType.Exclude
+        raycastParams.FilterDescendantsInstances = {b9.Character, b10}
+        raycastParams.IgnoreWater = true
+        local result = b7:Raycast(ray.Origin, ray.Direction * 1000, raycastParams)
+        
+        local b118
+        if result then
+            b118 = result.Position
+        else
+            b118 = ray.Origin + ray.Direction * 1000
+        end
+        
         local b119 = b104.Size * 0.5
         local b120 = b104.CFrame:PointToObjectSpace(b118)
         
@@ -2013,29 +2178,34 @@ RunService.RenderStepped:Connect(LPH_NO_VIRTUALIZE(function()
         triggerBox.Size = Vector3.new(fov.X or 0, fov.Y or 0, fov.Z or 0)
         triggerBox.Adornee = lockedPlayer.Character
     end
-    if lockedPlayer and shared.Saved['Trigger Bot'].Enabled and (not selectedCond["Visible"] or isTargetVisible(lockedPlayer.Character)) then
-        local tb = shared.Saved['Trigger Bot']
-        local mode = tb['Activation']['Activation Mode'] or "Toggle"
-        local cooldown = tb['Click Cooldown'] or 0
-        local char = LocalPlayer.Character
-        local hasKnife = char and (char:FindFirstChild("[Knife]") or char:FindFirstChild("Knife"))
-        if not hasKnife then
-            local inBox = isMouseInTriggerBox()
-            local active = false
-            if mode == "Always" then
-                active = true
-            elseif mode == "Hold" then
-                active = triggerKeyDown
-            elseif mode == "Toggle" then
-                active = triggerBotActive
-            end
-            if inBox and active then
-                local now = tick()
-                if now - lastActivationTime >= cooldown then
-                    local tool = char and char:FindFirstChildOfClass("Tool")
-                    if tool then
-                        tool:Activate()
-                        lastActivationTime = now
+    
+    -- Triggerbot: Works without lock requirement
+    if shared.Saved['Trigger Bot'].Enabled then
+        local closestPlayer = getClosestPlayerToMouse()
+        if closestPlayer and closestPlayer.Character and (not selectedCond["Visible"] or isTargetVisible(closestPlayer.Character)) then
+            local tb = shared.Saved['Trigger Bot']
+            local mode = tb['Activation']['Activation Mode'] or "Toggle"
+            local cooldown = tb['Click Cooldown'] or 0
+            local char = LocalPlayer.Character
+            local hasKnife = char and (char:FindFirstChild("[Knife]") or char:FindFirstChild("Knife"))
+            if not hasKnife then
+                local inBox = isMouseInTriggerBox(closestPlayer)
+                local active = false
+                if mode == "Always" then
+                    active = true
+                elseif mode == "Hold" then
+                    active = triggerKeyDown
+                elseif mode == "Toggle" then
+                    active = triggerBotActive
+                end
+                if inBox and active then
+                    local now = tick()
+                    if now - lastActivationTime >= cooldown then
+                        local tool = char and char:FindFirstChildOfClass("Tool")
+                        if tool then
+                            tool:Activate()
+                            lastActivationTime = now
+                        end
                     end
                 end
             end
