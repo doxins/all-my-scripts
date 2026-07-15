@@ -22,10 +22,10 @@ shared.Saved = {
 	['Camera Aimbot'] = {
 		['Enabled'] = true,
 		['Hit Part'] = 'Closest Part',
-		['Snappiness'] = 0.009,
+		['Snappiness'] = 0.003,
 
 		['Prediction'] = {
-			['X'] = 0.1555,
+			['X'] = 0.1855,
 			['Y'] = 0,
 			['Z'] = 0.121
 		},
@@ -80,13 +80,13 @@ shared.Saved = {
 			['HitPart'] = "Closest Point",
 			['Prediction'] = {
 				['Enabled'] = true,
-				['AutoPing'] = true,
+				['AutoPing'] = false,
 				['BasePrediction'] = 0.123,
 			},
 			['WallCheck'] = true,
 			['KnockedCheck'] = true,
 			['GrabbedCheck'] = true,
-			['HealthCheck'] = true,
+			['HealthCheck'] = false,
 			['HealthThreshold'] = 4,
 			['MaxDistance'] = 500,
 			['AntiAimViewer'] = true,
@@ -105,9 +105,9 @@ shared.Saved = {
 		},
 
 		['Prediction'] = {
-			['X'] = 0.123,
-			['Y'] = 0.123,
-			['Z'] = 0.123
+			['X'] = 0.113,
+			['Y'] = 0,
+			['Z'] = 0.113
 		},
 
 		['Activation'] = {
