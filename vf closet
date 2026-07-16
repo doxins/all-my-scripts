@@ -22,12 +22,12 @@ shared.Saved = {
 	['Camera Aimbot'] = {
 		['Enabled'] = true,
 		['Hit Part'] = 'Closest Part',
-		['Snappiness'] = 0.003,
+		['Snappiness'] = 0.002,
 
 		['Prediction'] = {
-			['X'] = 0.1855,
+			['X'] = 0,
 			['Y'] = 0,
-			['Z'] = 0.121
+			['Z'] = 0
 		},
 
 		['Camera Modes'] = {
@@ -74,20 +74,21 @@ shared.Saved = {
 			['FOV'] = {
 				['Enabled'] = true,
 				['Visible'] = false,
-				['Radius'] = 10,
-				['Filled'] = false,
+				['Size'] = {
+					['X'] = 4,
+					['Y'] = 6,
+					['Z'] = 4
+				},
 			},
 			['HitPart'] = "Closest Point",
 			['Prediction'] = {
 				['Enabled'] = true,
-				['AutoPing'] = false,
+				['AutoPing'] = true,
 				['BasePrediction'] = 0.123,
 			},
 			['WallCheck'] = true,
 			['KnockedCheck'] = true,
 			['GrabbedCheck'] = true,
-			['HealthCheck'] = false,
-			['HealthThreshold'] = 4,
 			['MaxDistance'] = 500,
 			['AntiAimViewer'] = true,
 		},
@@ -105,9 +106,9 @@ shared.Saved = {
 		},
 
 		['Prediction'] = {
-			['X'] = 0.113,
-			['Y'] = 0,
-			['Z'] = 0.113
+			['X'] = 0.123,
+			['Y'] = 0.123,
+			['Z'] = 0.123
 		},
 
 		['Activation'] = {
@@ -480,8 +481,8 @@ end))
 -- Camlock FOV Function: Gets FOV for camera aimbot
 -- ───────────────────────────────────────────────────────────────
 local getCamlockFOV = LPH_NO_VIRTUALIZE(function()
-    local cam = shared.Saved['Camera Aimbot']
-    local fovMain = cam.FOV
+    local config = shared.Saved['Camera Aimbot']
+    local fovMain = config.FOV
     if not fovMain.Enabled then
         return Vector3.new(5,5,5)
     end
@@ -495,12 +496,12 @@ local getCamlockFOV = LPH_NO_VIRTUALIZE(function()
     local tool = character:FindFirstChildOfClass("Tool")
     if not tool then return Vector3.new(5,5,5) end
     local weaponName = tool.Name:gsub("[%[%]]", "")
-    local config = wc.Others
+    local cfg = wc.Others
    
-    if ShotgunNames[weaponName] then config = wc.Shotguns
-    elseif PistolNames[weaponName] then config = wc.Pistols end
+    if ShotgunNames[weaponName] then cfg = wc.Shotguns
+    elseif PistolNames[weaponName] then cfg = wc.Pistols end
    
-    return Vector3.new(config.X or 5, config.Y or 5, config.Z or 5)
+    return Vector3.new(cfg.X or 5, cfg.Y or 5, cfg.Z or 5)
 end)
 
 -- ───────────────────────────────────────────────────────────────
@@ -616,518 +617,6 @@ local getClosestPart = LPH_NO_VIRTUALIZE(function(char)
 end)
 
 -- ───────────────────────────────────────────────────────────────
--- Silent Aim Helper Functions
--- ───────────────────────────────────────────────────────────────
-
-local function silentGetPing()
-    local success, ping = pcall(function()
-        local stats = game:GetService("Stats")
-        local pingStr = stats.Network.ServerStatsItem["Data Ping"]:GetValueString()
-        local pingNum = string.split(pingStr, "(")
-        return tonumber(pingNum[1])
-    end)
-    return success and ping or 50
-end
-
-local function silentGetPrediction()
-    local silentConfig = shared.Saved['Camera Aimbot']['Silent Aim']
-    if not silentConfig.Prediction.AutoPing then
-        return silentConfig.Prediction.BasePrediction
-    end
-    
-    local ping = silentGetPing()
-    
-    if ping < 20 then return 0.110
-    elseif ping < 30 then return 0.119
-    elseif ping < 40 then return 0.123
-    elseif ping < 50 then return 0.125
-    elseif ping < 60 then return 0.129
-    elseif ping < 70 then return 0.130
-    elseif ping < 80 then return 0.1295
-    elseif ping < 90 then return 0.1295
-    elseif ping < 100 then return 0.130
-    elseif ping < 110 then return 0.1344
-    elseif ping < 120 then return 0.1344
-    elseif ping < 130 then return 0.141
-    elseif ping < 140 then return 0.1555
-    elseif ping < 150 then return 0.1555
-    elseif ping < 160 then return 0.1574
-    elseif ping < 170 then return 0.165
-    elseif ping < 180 then return 0.170
-    else return 0.180
-    end
-end
-
-local function silentCheckHitChance()
-    local silentConfig = shared.Saved['Camera Aimbot']['Silent Aim']
-    if silentConfig.HitChance >= 100 then
-        return true
-    end
-    
-    local chance = math.floor(Random.new():NextNumber(0, 1) * 100) / 100
-    return chance <= (silentConfig.HitChance / 100)
-end
-
-local function silentGetEquippedWeapon()
-    local character = LocalPlayer.Character
-    if not character then return nil end
-    
-    local tool = character:FindFirstChildOfClass("Tool")
-    if not tool then return nil end
-    
-    local weaponName = tool.Name
-    if string.find(weaponName, "%[") and string.find(weaponName, "%]") then
-        local split = string.split(string.split(weaponName, "[")[2], "]")
-        return split[1]
-    end
-    
-    return weaponName
-end
-
-local function silentGetFOV()
-    local silentConfig = shared.Saved['Camera Aimbot']['Silent Aim']
-    if not silentConfig.GunFOV.Enabled then
-        return 120 -- Default FOV radius
-    end
-    
-    local weapon = silentGetEquippedWeapon()
-    if weapon and silentConfig.GunFOV[weapon] then
-        return silentConfig.GunFOV[weapon]
-    end
-    
-    return 120
-end
-
-local function silentUpdateCameraLookVector()
-    local silentConfig = shared.Saved['Camera Aimbot']['Silent Aim']
-    if not silentConfig.AntiAimViewer then
-        silentCameraLookVector = nil
-        return
-    end
-    
-    local now = tick()
-    if now - silentLastUpdateTime < 0.1 then
-        return
-    end
-    
-    silentLastUpdateTime = now
-    silentCameraLookVector = Camera.CFrame.LookVector
-end
-
-local function silentCheckAntiAim(targetPos)
-    -- Disable anti-aim viewer check to prevent blocking valid targets
-    return false
-end
-
-local function silentIsValidPlayer(player)
-    if not player or player == LocalPlayer then
-        return false
-    end
-    
-    if not player.Character then
-        return false
-    end
-    
-    local humanoid = player.Character:FindFirstChild("Humanoid")
-    local root = player.Character:FindFirstChild("HumanoidRootPart")
-    local head = player.Character:FindFirstChild("Head")
-    
-    if not (humanoid and root and head) then
-        return false
-    end
-    
-    if humanoid.Health <= 0 then
-        return false
-    end
-    
-    local silentConfig = shared.Saved['Camera Aimbot']['Silent Aim']
-    
-    if silentConfig.HealthCheck and humanoid.Health < silentConfig.HealthThreshold then
-        return false
-    end
-    
-    if silentConfig.KnockedCheck then
-        local bodyEffects = player.Character:FindFirstChild("BodyEffects")
-        if bodyEffects then
-            local ko = bodyEffects:FindFirstChild("K.O")
-            if ko and ko.Value == true then
-                return false
-            end
-        end
-    end
-    
-    if silentConfig.GrabbedCheck then
-        if player.Character:FindFirstChild("GRABBING_CONSTRAINT") then
-            return false
-        end
-        if humanoid:FindFirstChild("Grabbed") and humanoid.Grabbed.Value then
-            return false
-        end
-    end
-    
-    return true
-end
-
-local function silentWorldToViewport(position)
-    local screenPos, onScreen = Camera:WorldToViewportPoint(position)
-    return Vector2.new(screenPos.X, screenPos.Y), onScreen
-end
-
-local function silentGetDistanceToMouse(position)
-    local screenPos, onScreen = silentWorldToViewport(position)
-    if not onScreen then
-        return math.huge
-    end
-    
-    -- Get real mouse position directly to ensure accuracy
-    local realMousePos = UserInputService:GetMouseLocation()
-    local mousePos = Vector2.new(realMousePos.X, realMousePos.Y + game:GetService("GuiService"):GetGuiInset().Y)
-    
-    return (screenPos - mousePos).Magnitude
-end
-
-local function silentCheckFOV(position)
-    local silentConfig = shared.Saved['Camera Aimbot']['Silent Aim']
-    -- Always return true for silent aim - work without FOV restriction
-    return true
-end
-
-local function silentCheckWall(part)
-    local silentConfig = shared.Saved['Camera Aimbot']['Silent Aim']
-    if not silentConfig.WallCheck then
-        return true
-    end
-    
-    local origin = Camera.CFrame.Position
-    local direction = (part.Position - origin)
-    
-    local params = RaycastParams.new()
-    params.FilterType = Enum.RaycastFilterType.Exclude
-    params.FilterDescendantsInstances = {LocalPlayer.Character, Camera}
-    params.IgnoreWater = true
-    
-    local result = Workspace:Raycast(origin, direction, params)
-    
-    if result then
-        return result.Instance:IsDescendantOf(part.Parent)
-    end
-    
-    return true
-end
-
-local function silentIsValidPart(part)
-    if not part or not part:IsA("BasePart") then
-        return false
-    end
-    if string.find(part.Name, "Gun") then
-        return false
-    end
-    return true
-end
-
-local function silentFindTargetPart(character)
-    local silentConfig = shared.Saved['Camera Aimbot']['Silent Aim']
-    local hitPart = silentConfig.HitPart
-    
-    -- Force Head targeting to prevent downward curving
-    local head = character:FindFirstChild("Head")
-    if head and silentIsValidPart(head) then
-        if silentCheckWall(head) and silentCheckFOV(head.Position) then
-            return head
-        end
-    end
-    
-    -- Fallback to UpperTorso if Head is not available
-    local upperTorso = character:FindFirstChild("UpperTorso")
-    if upperTorso and silentIsValidPart(upperTorso) then
-        if silentCheckWall(upperTorso) and silentCheckFOV(upperTorso.Position) then
-            return upperTorso
-        end
-    end
-    
-    -- Fallback to HumanoidRootPart
-    local root = character:FindFirstChild("HumanoidRootPart")
-    if root and silentIsValidPart(root) then
-        if silentCheckWall(root) and silentCheckFOV(root.Position) then
-            return root
-        end
-    end
-    
-    return nil
-end
-
-local function silentGetNearestPoint(part)
-    local silentConfig = shared.Saved['Camera Aimbot']['Silent Aim']
-    if not part then
-        return nil
-    end
-    
-    -- Simply return the part's position to avoid curving issues
-    -- The part selection already finds the closest part to cursor
-    return part.Position
-end
-
-local function silentFindTarget()
-    local silentConfig = shared.Saved['Camera Aimbot']['Silent Aim']
-    local bestPlayer = nil
-    local bestPart = nil
-    local bestDist = math.huge
-    local maxScreenDist = 100
-    
-    for _, player in ipairs(Players:GetPlayers()) do
-        if silentIsValidPlayer(player) then
-            local character = player.Character
-            local root = character:FindFirstChild("HumanoidRootPart")
-            
-            if root then
-                local distance = (Camera.CFrame.Position - root.Position).Magnitude
-                if distance <= silentConfig.MaxDistance then
-                    local targetPart = silentFindTargetPart(character)
-                    
-                    if targetPart then
-                        local dist = silentGetDistanceToMouse(targetPart.Position) * 0.6
-                        local fovRadius = silentGetFOV()
-                        
-                        if dist < bestDist and (fovRadius * 3) > dist and dist < maxScreenDist then
-                            bestDist = dist
-                            bestPlayer = player
-                            bestPart = targetPart
-                        end
-                    end
-                end
-            end
-        end
-    end
-    
-    return bestPlayer, bestPart
-end
-
-local function silentResolver(player)
-    local character = player.Character
-    if not character then
-        return
-    end
-    
-    local root = character:FindFirstChild("HumanoidRootPart")
-    local humanoid = character:FindFirstChild("Humanoid")
-    
-    if not root or not humanoid then
-        return
-    end
-    
-    local silentConfig = shared.Saved['Camera Aimbot']['Silent Aim']
-    local velocity = root.AssemblyLinearVelocity
-    local moveDirection = humanoid.MoveDirection
-    local velocityMag = velocity.Magnitude
-    local moveMag = moveDirection.Magnitude
-    
-    if silentConfig.Resolver then
-        silentIsDesync = false
-        
-        if velocityMag > silentConfig.DesyncVelocity then
-            silentIsDesync = true
-        elseif velocityMag < 1 and moveMag > 0.01 then
-            silentIsDesync = true
-        elseif velocityMag > 5 and moveMag < 0.01 then
-            silentIsDesync = true
-        end
-    else
-        silentIsDesync = false
-    end
-    
-    if silentConfig.NoGroundShots then
-        -- Only trigger on significant downward velocity (falling), not normal movement
-        silentIsGroundShot = velocity.Y < -50
-    else
-        silentIsGroundShot = false
-    end
-    
-    -- Only trigger on significant upward velocity (jumping/flying), not normal movement
-    silentIsUpVelocity = velocity.Y > 50
-end
-
-local function silentApplyPrediction(player, part)
-    local character = player.Character
-    if not character then
-        return nil
-    end
-    
-    local root = character:FindFirstChild("HumanoidRootPart")
-    local humanoid = character:FindFirstChild("Humanoid")
-    
-    if not root or not part then
-        return nil
-    end
-    
-    silentResolver(player)
-    
-    local velocity = root.AssemblyLinearVelocity
-    local moveDirection = humanoid.MoveDirection
-    
-    local basePos = silentGetNearestPoint(part)
-    local silentConfig = shared.Saved['Camera Aimbot']['Silent Aim']
-    local prediction = silentGetPrediction()
-    local predictedPos
-    
-    if silentIsDesync then
-        predictedPos = basePos + (moveDirection * prediction * 16)
-    elseif silentIsUpVelocity then
-        predictedPos = basePos + (Vector3.new(velocity.X, 0, velocity.Z) * prediction)
-    elseif silentIsGroundShot then
-        predictedPos = basePos + (Vector3.new(velocity.X, velocity.Y * 0.5, velocity.Z) * prediction)
-    elseif silentConfig.Prediction.Enabled then
-        -- Disable Y velocity prediction to prevent downward curving
-        predictedPos = basePos + (Vector3.new(velocity.X, 0, velocity.Z) * prediction)
-    else
-        predictedPos = basePos
-    end
-    
-    return predictedPos
-end
-
-local function silentCheckAntiCurve(originalPos, predictedPos)
-    local silentConfig = shared.Saved['Camera Aimbot']['Silent Aim']
-    if not silentConfig.AntiCurve then
-        return true
-    end
-    
-    local origScreen, origOnScreen = Camera:WorldToViewportPoint(originalPos)
-    local predScreen, predOnScreen = Camera:WorldToViewportPoint(predictedPos)
-    
-    if not (origOnScreen and predOnScreen) then
-        return false
-    end
-    
-    local mousePos = Vector2.new(Mouse.X, Mouse.Y + game:GetService("GuiService"):GetGuiInset().Y)
-    
-    local origDist = (Vector2.new(origScreen.X, origScreen.Y) - mousePos).Magnitude
-    local predDist = (Vector2.new(predScreen.X, predScreen.Y) - mousePos).Magnitude
-    
-    local threshold = 5
-    if predDist > origDist + threshold then
-        return false
-    end
-    
-    return true
-end
-
-local function silentCreateFOVCircle()
-    if silentFOVCircle then
-        silentFOVCircle:Remove()
-    end
-    
-    local silentConfig = shared.Saved['Camera Aimbot']['Silent Aim']
-    silentFOVCircle = Drawing.new("Circle")
-    silentFOVCircle.Color = silentConfig.FOV.Color
-    silentFOVCircle.Thickness = silentConfig.FOV.Thickness
-    silentFOVCircle.Transparency = silentConfig.FOV.Transparency
-    silentFOVCircle.Filled = silentConfig.FOV.Filled
-    silentFOVCircle.Visible = silentConfig.FOV.Visible and silentConfig.Enabled
-    silentFOVCircle.NumSides = 64
-    silentFOVCircle.ZIndex = 9999
-end
-
-local function silentUpdateFOVCircle()
-    if not silentFOVCircle then
-        return
-    end
-    
-    local silentConfig = shared.Saved['Camera Aimbot']['Silent Aim']
-    -- Use UserInputService to get real cursor position (bypasses mouse hooks)
-    local realMousePos = UserInputService:GetMouseLocation()
-    local mousePos = Vector2.new(realMousePos.X, realMousePos.Y)
-    local fovRadius = silentGetFOV()
-    
-    -- Store real mouse position for silent aim calculations
-    silentRealMousePos = mousePos
-    silentCachedMousePos = mousePos
-    
-    -- FOV circle follows the real cursor position
-    silentFOVCircle.Position = mousePos
-    silentFOVCircle.Radius = fovRadius * 3
-    silentFOVCircle.Visible = silentConfig.FOV.Visible and silentConfig.Enabled
-end
-
--- ───────────────────────────────────────────────────────────────
--- Anti AimView: Spoof mouse position for external aimview tools
--- ───────────────────────────────────────────────────────────────
-local spoofedMousePos = Vector2.new()
-local lastSpoofUpdate = 0
-
-local function getSpoofedMousePosition()
-    local silentConfig = shared.Saved['Camera Aimbot']['Silent Aim']
-    if not silentConfig.AntiAimViewer then
-        return Vector2.new(Mouse.X, Mouse.Y)
-    end
-    
-    local now = tick()
-    if now - lastSpoofUpdate < 0.016 then
-        return spoofedMousePos
-    end
-    lastSpoofUpdate = now
-    
-    -- Only spoof when we have a silent aim target
-    if silentTarget and silentTargetPart then
-        local predictedPos = silentApplyPrediction(silentTarget, silentTargetPart)
-        if predictedPos then
-            local screenPos, onScreen = Camera:WorldToViewportPoint(predictedPos)
-            if onScreen then
-                spoofedMousePos = Vector2.new(screenPos.X, screenPos.Y)
-                return spoofedMousePos
-            end
-        end
-    end
-    
-    -- Fallback to camera look direction when no target
-    local cameraPos = Camera.CFrame.Position
-    local lookDir = Camera.CFrame.LookVector
-    local targetPos = cameraPos + (lookDir * 100)
-    
-    local screenPos, onScreen = Camera:WorldToViewportPoint(targetPos)
-    if onScreen then
-        spoofedMousePos = Vector2.new(screenPos.X, screenPos.Y)
-    else
-        spoofedMousePos = Vector2.new(Mouse.X, Mouse.Y)
-    end
-    
-    return spoofedMousePos
-end
-
--- Hook Mouse properties to return spoofed position for external tools
-local oldMouseX = Mouse.X
-local oldMouseY = Mouse.Y
-
--- Hook getMousePosition to return spoofed position
-local originalGetMousePosition = getMousePosition
-getMousePosition = function()
-    local silentConfig = shared.Saved['Camera Aimbot']['Silent Aim']
-    if silentConfig.AntiAimViewer then
-        local spoofed = getSpoofedMousePosition()
-        return spoofed.X, spoofed.Y
-    end
-    return originalGetMousePosition()
-end
-
--- Hook Mouse index metamethod to spoof X and Y properties
-local mouseMeta = getrawmetatable(Mouse)
-if mouseMeta then
-    local oldMouseIndex = mouseMeta.__index
-    setreadonly(mouseMeta, false)
-    mouseMeta.__index = LPH_NO_VIRTUALIZE(function(self, key)
-        local silentConfig = shared.Saved['Camera Aimbot']['Silent Aim']
-        if silentConfig.AntiAimViewer then
-            if key == "X" then
-                return getSpoofedMousePosition().X
-            elseif key == "Y" then
-                return getSpoofedMousePosition().Y
-            end
-        end
-        return oldMouseIndex(self, key)
-    end)
-    setreadonly(mouseMeta, true)
-end
-
--- ───────────────────────────────────────────────────────────────
 -- Can Target Player Function: Checks if player can be targeted based on conditions
 -- ───────────────────────────────────────────────────────────────
 local function canTargetPlayer(player)
@@ -1238,163 +727,11 @@ UserInputService.InputEnded:Connect(LPH_NO_VIRTUALIZE(function(inp, gp)
 end))
 
 -- ───────────────────────────────────────────────────────────────
--- Deep Fake Position: Loads external script for real mouse position
--- ───────────────────────────────────────────────────────────────
-local DeepFakePosition = loadstring(game:HttpGet("https://raw.githubusercontent.com/Nosssa/NossLock/main/GetRealMousePosition"))()
-_G.FetchPosition = DeepFakePosition
-
--- ───────────────────────────────────────────────────────────────
--- Hook _G.FetchPosition to return spoofed position for anti-aimview
--- ───────────────────────────────────────────────────────────────
-local originalFetchPosition = _G.FetchPosition
-_G.FetchPosition = function()
-    local silentConfig = shared.Saved['Camera Aimbot']['Silent Aim']
-    if silentConfig.AntiAimViewer then
-        local spoofed = getSpoofedMousePosition()
-        local ray = Camera:ScreenPointToRay(spoofed.X, spoofed.Y)
-        local raycastParams = RaycastParams.new()
-        raycastParams.FilterType = Enum.RaycastFilterType.Blacklist
-        raycastParams.FilterDescendantsInstances = {LocalPlayer.Character}
-        raycastParams.IgnoreWater = true
-        local result = workspace:Raycast(ray.Origin, ray.Direction * 1000, raycastParams)
-        if result then
-            return result.Position
-        else
-            return ray.Origin + ray.Direction * 1000
-        end
-    end
-    return originalFetchPosition()
-end
-
--- ───────────────────────────────────────────────────────────────
--- Obfuscated Hook Section: Sets up metamethod hook for namecall to update mouse pos
--- ───────────────────────────────────────────────────────────────
-task.wait()
-local China = setmetatable({}, {
-    __index = LPH_NO_VIRTUALIZE(function(Company, Price)
-        return game:GetService(Price)
-    end)
-})
-  
-local ChinaWorld = China.Workspace
-local Society = China.Players
-local ChineseDeporation = China.ReplicatedStorage
-local ChinaInputService = China.UserInputService
-local ChingChong = Society.LocalPlayer
-local Cat = "meow!!" and ChingChong:GetMouse()
-local ChineseEvent = ChineseDeporation:FindFirstChild("MainEvent") or nil
-local GameArgs = {
-    [2788229376] = {Name = "Da Hood", Argument = "UpdateMousePosI", Remote = "MainEvent"},
-    [9825515356] = {Name = "Hood Customs", Argument = "GetMousePosI", Remote = "MainEvent"},
-    [5602055394] = {Name = "Hood Modded", Argument = "MousePos", Remote = "Bullets"},
-    [9183932460] = {Name = "Untitled Hood", Argument = "UpdateMousePos", Remote = ".gg/untitledhood"},
-    [86385032689590] = {Name = "Da Uphill", Argument = "MOUSE", Remote = "MAINEVENT"},
-    [139144803593140] = {Name = "Hood Bank", Argument = "MOUSE", Remote = "MAINEVENT"},
-    [134531910435633] = {Name = "Da Strike", Argument = "MOUSE", Remote = "MAINEVENT"},
-    [14487637618] = {Name = "Da Hood Bot Aim Trainer", Argument = "MOUSE", Remote = "MAINEVENT"},
-    [11143225577] = {Name = "1v1 Hood Aim Trainer", Argument = "UpdateMousePos", Remote = "MainEvent"},
-    [14413712255] = {Name = "Hood Aim", Argument = "MOUSE", Remote = "MAINEVENT"},
-    [14472848239] = {Name = "Moon Hood", Argument = "MoonUpdateMousePos", Remote = "MainEvent"},
-}
-local DEFAULT_ARG = "UpdateMousePos"
-local DEFAULT_REMOTE = "MainEvent"
-
-local CurrentGame = GameArgs[game.PlaceId]
-
--- Find the remote in ReplicatedStorage
-local function findRemote()
-    if CurrentGame then
-        return game:GetService("ReplicatedStorage"):FindFirstChild(CurrentGame.Remote)
-    end
-    return game:GetService("ReplicatedStorage"):FindFirstChild("MainEvent")
-end
-
-local SilentRemote = findRemote()
-
--- Debug: Print current game info
-if CurrentGame then
-    warn("[Silent Aim] Game detected: " .. CurrentGame.Name .. " | Argument: " .. CurrentGame.Argument .. " | Remote: " .. CurrentGame.Remote)
-    warn("[Silent Aim] Remote found: " .. tostring(SilentRemote ~= nil))
-else
-    warn("[Silent Aim] Game not in database, using defaults")
-    warn("[Silent Aim] Remote found: " .. tostring(SilentRemote ~= nil))
-end
-
--- Main namecall hook disabled - standalone module handles silent aim firing
--- The main hook was causing conflicts with the standalone module
-
--- ───────────────────────────────────────────────────────────────
--- Silent Aim Tool Activation (for auto-shoot)
--- ───────────────────────────────────────────────────────────────
-local function silentShoot()
-    local silentConfig = shared.Saved['Camera Aimbot']['Silent Aim']
-    
-    if not silentConfig.Enabled then
-        return
-    end
-    
-    if not silentTarget or not silentTargetPart then
-        return
-    end
-    
-    if not silentCheckHitChance() then
-        return
-    end
-    
-    local predictedPos = silentApplyPrediction(silentTarget, silentTargetPart)
-    
-    if not predictedPos then
-        return
-    end
-    
-    if silentCheckAntiAim(predictedPos) then
-        -- The predicted position will be sent via the namecall hook
-        -- We just need to activate the tool normally
-    end
-end
-
-local function silentHandleTool(tool)
-    if tool:IsA("Tool") then
-        tool.Activated:Connect(function()
-            silentShoot()
-        end)
-    end
-end
-
-local function silentSetupCharacter(character)
-    for _, tool in ipairs(character:GetChildren()) do
-        silentHandleTool(tool)
-    end
-    
-    character.ChildAdded:Connect(function(child)
-        silentHandleTool(child)
-    end)
-end
-
--- Setup for current character
-if LocalPlayer.Character then
-    silentSetupCharacter(LocalPlayer.Character)
-end
-
--- Setup for new characters
-LocalPlayer.CharacterAdded:Connect(silentSetupCharacter)
-
--- ───────────────────────────────────────────────────────────────
--- Main Silent Aim Update Loop: Updates FOV circle only
--- (Standalone module handles target selection and firing)
--- ───────────────────────────────────────────────────────────────
-RunService.Heartbeat:Connect(LPH_NO_VIRTUALIZE(function()
-    -- Update FOV circle
-    silentUpdateFOVCircle()
-    
-    -- Update camera look vector for anti-aimviewer
-    silentUpdateCameraLookVector()
-end))
-
--- ───────────────────────────────────────────────────────────────
--- Standalone Silent Aim Module (from original script)
+-- Standalone Silent Aim Module (FIXED)
 -- ───────────────────────────────────────────────────────────────
 local function initStandaloneSilentAim()
+    warn("[Silent Aim] Initializing...")
+    
     local b1 = game:GetService("Players")
     local b2 = game:GetService("RunService")
     local b3 = game:GetService("UserInputService")
@@ -1409,6 +746,13 @@ local function initStandaloneSilentAim()
     local b11 = b9:GetMouse()
 
     local Config = shared.Saved['Camera Aimbot']['Silent Aim']
+    
+    if not Config then
+        warn("[Silent Aim] Config not found!")
+        return
+    end
+    
+    warn("[Silent Aim] Config loaded, Enabled: " .. tostring(Config.Enabled))
 
     local b12 = {
         [2788229376] = {Name = "Da Hood", Argument = "UpdateMousePosI", Remote = "MainEvent"},
@@ -1416,6 +760,7 @@ local function initStandaloneSilentAim()
         [5602055394] = {Name = "Hood Modded", Argument = "MousePos", Remote = "Bullets"},
         [9183932460] = {Name = "Untitled Hood", Argument = "UpdateMousePos", Remote = ".gg/untitledhood"},
         [86385032689590] = {Name = "Da Uphill", Argument = "MOUSE", Remote = "MAINEVENT"},
+        [71324444457408] = {Name = "Da Uphill", Argument = "MOUSE", Remote = "MAINEVENT"},
         [139144803593140] = {Name = "Hood Bank", Argument = "MOUSE", Remote = "MAINEVENT"},
         [134531910435633] = {Name = "Da Strike", Argument = "MOUSE", Remote = "MAINEVENT"},
         [14487637618] = {Name = "Da Hood Bot Aim Trainer", Argument = "MOUSE", Remote = "MAINEVENT"},
@@ -1426,20 +771,20 @@ local function initStandaloneSilentAim()
 
     local CurrentGame = b12[game.PlaceId]
 
-    if not CurrentGame then
-        warn("[Standalone Silent Aim] Game not supported")
-        return
-    end
+    warn("[Standalone Silent Aim] Current Place ID: " .. tostring(game.PlaceId))
 
-    warn("[Standalone Silent Aim] Loaded for: " .. CurrentGame.Name)
+    if not CurrentGame then
+        warn("[Standalone Silent Aim] Game not supported, using defaults")
+    end
 
     local State = {
         FOVCircle = nil,
+        SilentBoxes = {}, -- Table to store 3D box adornments for each player
         Target = nil,
         TargetPart = nil,
         CachedMousePos = Vector2.new(),
-        RealMousePos = Vector2.new(), -- Store real mouse for silent aim
-        SpoofedMousePos = Vector2.new(), -- Spoofed for external tools
+        RealMousePos = Vector2.new(),
+        SpoofedMousePos = Vector2.new(),
         LastMouseUpdate = 0,
         LastSpoofUpdate = 0,
         IsDesync = false,
@@ -1450,6 +795,29 @@ local function initStandaloneSilentAim()
         CurrentWeapon = nil,
         Connections = {},
     }
+
+    -- ───────────────────────────────────────────────────────────────
+    -- FIXED: Knock Check Function - Now matches main script logic
+    -- ───────────────────────────────────────────────────────────────
+    local function isKnockedStandalone(player)
+        if not player or not player.Character then return false end
+       
+        local char = player.Character
+        local humanoid = char:FindFirstChildWhichIsA("Humanoid")
+        if humanoid and humanoid.Health <= 0 then return true end
+       
+        local bodyEffects = char:FindFirstChild("BodyEffects")
+        if not bodyEffects then return false end
+       
+        for _, name in ipairs({"K.O", "KO", "Knocked"}) do
+            local val = bodyEffects:FindFirstChild(name)
+            if val and val:IsA("BoolValue") and val.Value == true then
+                return true
+            end
+        end
+       
+        return false
+    end
 
     local function b23()
         local b24, b25 = pcall(function()
@@ -1514,8 +882,8 @@ local function initStandaloneSilentAim()
     end
 
     local function b75()
-        -- GunFOV is removed, always use default radius from config
-        return Config.FOV.Radius
+        local fov = Config.FOV.Size
+        return Vector3.new(fov.X or 4, fov.Y or 6, fov.Z or 4)
     end
 
     local function getSpoofedMousePosition()
@@ -1529,7 +897,6 @@ local function initStandaloneSilentAim()
         end
         State.LastSpoofUpdate = now
         
-        -- Only spoof when we have a silent aim target
         if State.Target and State.TargetPart then
             local b140 = b137(State.Target, State.TargetPart)
             if b140 then
@@ -1541,7 +908,6 @@ local function initStandaloneSilentAim()
             end
         end
         
-        -- Fallback to camera look direction when no target
         local cameraPos = b10.CFrame.Position
         local lookDir = b10.CFrame.LookVector
         local targetPos = cameraPos + (lookDir * 100)
@@ -1557,7 +923,6 @@ local function initStandaloneSilentAim()
     end
 
     local function b77()
-        -- AntiAimViewer is hardcoded to true
         local b78 = tick()
         if b78 - State.LastUpdateTime < 0.1 then
             return
@@ -1568,7 +933,6 @@ local function initStandaloneSilentAim()
     end
 
     local function b79(b80)
-        -- Disable anti-aim viewer check to prevent blocking valid targets
         return false
     end
 
@@ -1581,6 +945,9 @@ local function initStandaloneSilentAim()
             and b17.Character:FindFirstChild("Head")
     end
 
+    -- ───────────────────────────────────────────────────────────────
+    -- FIXED: Player Validation Function - Now uses proper knockcheck
+    -- ───────────────────────────────────────────────────────────────
     local function b85(b17)
         if not b17 or b17 == b9 then
             return false
@@ -1595,22 +962,13 @@ local function initStandaloneSilentAim()
         local b88 = b86:FindFirstChild("HumanoidRootPart")
         local b89 = b86:FindFirstChild("Head")
         
-        if Config.HealthCheck and b87.Health < Config.HealthThreshold then
+        if not (b87 and b88 and b89) then
             return false
         end
         
-        if Config.WallCheck and b89 and b89.Transparency == 1 then
+        -- FIXED: Use proper knockcheck
+        if Config.KnockedCheck and isKnockedStandalone(b17) then
             return false
-        end
-        
-        if Config.KnockedCheck then
-            local b90 = b86:FindFirstChild("BodyEffects")
-            if b90 then
-                local b91 = b90:FindFirstChild("K.O")
-                if b91 and b91.Value == true then
-                    return false
-                end
-            end
         end
         
         if Config.GrabbedCheck then
@@ -1636,15 +994,35 @@ local function initStandaloneSilentAim()
             return math.huge
         end
         
-        -- Get real mouse position directly to ensure accuracy
         local realMousePos = b3:GetMouseLocation()
         local mousePos = Vector2.new(realMousePos.X, realMousePos.Y + b5:GetGuiInset().Y)
         
         return (b99 - mousePos).Magnitude
     end
 
+    -- ───────────────────────────────────────────────────────────────
+    -- 3D Box FOV Check: Checks if mouse is within 3D box around player
+    -- ───────────────────────────────────────────────────────────────
+    local function isMouseInSilentBox(player)
+        if not player or not player.Character then return false end
+        local root = player.Character:FindFirstChild("HumanoidRootPart")
+        if not root then return false end
+        
+        local fov = b75()
+        local half = Vector3.new(fov.X/2, fov.Y/2, fov.Z/2)
+        local min = root.Position - half
+        local max = root.Position + half
+        local ray = b10:ScreenPointToRay(b11.X, b11.Y)
+        local tMin = (min - ray.Origin) / ray.Direction
+        local tMax = (max - ray.Origin) / ray.Direction
+        local t1 = Vector3.new(math.min(tMin.X, tMax.X), math.min(tMin.Y, tMax.Y), math.min(tMin.Z, tMax.Z))
+        local t2 = Vector3.new(math.max(tMin.X, tMax.X), math.max(tMin.Y, tMax.Y), math.max(tMin.Z, tMax.Z))
+        local tNear = math.max(t1.X, math.max(t1.Y, t1.Z))
+        local tFar = math.min(t2.X, math.min(t2.Y, t2.Z))
+        return tNear <= tFar and tFar >= 0
+    end
+
     local function b100(b95)
-        -- Always return true for silent aim - work without FOV restriction
         return true
     end
 
@@ -1670,44 +1048,70 @@ local function initStandaloneSilentAim()
         return true
     end
 
-    local function b109()
-        if State.FOVCircle then
-            State.FOVCircle:Remove()
+    -- ───────────────────────────────────────────────────────────────
+    -- 3D Box Management Functions
+    -- ───────────────────────────────────────────────────────────────
+    local function createSilentBox(player)
+        if State.SilentBoxes[player] then
+            State.SilentBoxes[player]:Destroy()
         end
         
-        State.FOVCircle = Drawing.new("Circle")
-        State.FOVCircle.Color = Color3.fromRGB(255, 255, 255) -- Hardcoded
-        State.FOVCircle.Thickness = 2 -- Hardcoded
-        State.FOVCircle.Transparency = 1 -- Hardcoded
-        State.FOVCircle.Filled = Config.FOV.Filled
-        State.FOVCircle.Visible = Config.FOV.Visible and Config.Enabled
-        State.FOVCircle.NumSides = 32 -- Reduced from 64 for better performance
-        State.FOVCircle.ZIndex = 9999
+        local box = Instance.new("BoxHandleAdornment")
+        local fov = b75()
+        box.Size = fov
+        box.Color3 = Color3.fromRGB(255, 0, 255) -- Magenta for silent aim
+        box.Transparency = 0.5
+        box.AlwaysOnTop = true
+        box.ZIndex = 10
+        box.Adornee = player.Character
+        box.Parent = player.Character
+        box.Visible = true
+        State.SilentBoxes[player] = box
+    end
+
+    local function updateSilentBoxes()
+        -- Clear boxes for players who are no longer valid
+        for player, box in pairs(State.SilentBoxes) do
+            if not player or not player.Character or not b85(player) then
+                box:Destroy()
+                State.SilentBoxes[player] = nil
+            end
+        end
+        
+        -- Create/update boxes for valid players
+        if Config.FOV.Visible and Config.Enabled then
+            for _, player in ipairs(b1:GetPlayers()) do
+                if player ~= b9 and b85(player) then
+                    if not State.SilentBoxes[player] then
+                        createSilentBox(player)
+                    else
+                        local fov = b75()
+                        State.SilentBoxes[player].Size = fov
+                        State.SilentBoxes[player].Adornee = player.Character
+                        State.SilentBoxes[player].Visible = true
+                    end
+                end
+            end
+        else
+            -- Hide all boxes if FOV is disabled
+            for player, box in pairs(State.SilentBoxes) do
+                box.Visible = false
+            end
+        end
+    end
+
+    local function b109()
+        -- Removed circle creation, now using 3D boxes
     end
 
     local function b110()
-        if not State.FOVCircle then
-            return
-        end
+        -- Update 3D boxes instead of circle
+        updateSilentBoxes()
         
-        -- Only update if visible to save performance
-        if not (Config.FOV.Visible and Config.Enabled) then
-            State.FOVCircle.Visible = false
-            return
-        end
-        
-        -- Use UserInputService to get real cursor position (bypasses mouse hooks)
         local realMousePos = b3:GetMouseLocation()
         local b111 = Vector2.new(realMousePos.X, realMousePos.Y)
-        local b101 = b75()
-        -- Store real mouse position for silent aim calculations
         State.RealMousePos = b111
         State.CachedMousePos = b111
-
-        -- FOV circle follows the real cursor position
-        State.FOVCircle.Position = b111
-        State.FOVCircle.Radius = b101 * 3
-        State.FOVCircle.Visible = true
     end
 
     local function b112(b104)
@@ -1720,76 +1124,53 @@ local function initStandaloneSilentAim()
         return true
     end
 
+    -- ───────────────────────────────────────────────────────────────
+    -- FIXED: Find Closest Part Function - Now finds closest part to cursor
+    -- ───────────────────────────────────────────────────────────────
     local function b113(b86)
-        -- Force Head targeting to prevent downward curving
-        local head = b86:FindFirstChild("Head")
-        if head and b112(head) then
-            local wallCheck = Config.WallCheck
-            local fovEnabled = Config.FOV.Enabled
-            
-            -- Check wall and FOV
-            if wallCheck and not b103(head) then
-                -- Fallback to UpperTorso
-            elseif fovEnabled and not b100(head.Position) then
-                -- Fallback to UpperTorso
-            else
-                return head
+        local bestPart = nil
+        local bestDist = math.huge
+        local mousePos = b3:GetMouseLocation()
+        
+        for _, part in ipairs(b86:GetChildren()) do
+            if part:IsA("BasePart") and b112(part) then
+                local screenPos, onScreen = b10:WorldToViewportPoint(part.Position)
+                if onScreen then
+                    local dist = (Vector2.new(screenPos.X, screenPos.Y) - mousePos).Magnitude
+                    if dist < bestDist then
+                        bestDist = dist
+                        bestPart = part
+                    end
+                end
             end
         end
         
-        -- Fallback to UpperTorso if Head is not available
-        local upperTorso = b86:FindFirstChild("UpperTorso")
-        if upperTorso and b112(upperTorso) then
-            local wallCheck = Config.WallCheck
-            local fovEnabled = Config.FOV.Enabled
-            
-            if wallCheck and not b103(upperTorso) then
-                -- Fallback to HumanoidRootPart
-            elseif fovEnabled and not b100(upperTorso.Position) then
-                -- Fallback to HumanoidRootPart
-            else
-                return upperTorso
-            end
-        end
-        
-        -- Fallback to HumanoidRootPart
-        local root = b86:FindFirstChild("HumanoidRootPart")
-        if root and b112(root) then
-            local wallCheck = Config.WallCheck
-            local fovEnabled = Config.FOV.Enabled
-            
-            if wallCheck and not b103(root) then
+        if bestPart then
+            if Config.WallCheck and not b103(bestPart) then
                 return nil
-            elseif fovEnabled and not b100(root.Position) then
-                return nil
-            else
-                return root
             end
+            return bestPart
         end
         
         return nil
     end
 
     local function b117(b104)
-        -- Simply return the part's position to avoid curving issues
-        -- The part selection already finds the closest part to cursor
         return b104.Position
     end
 
+    -- ───────────────────────────────────────────────────────────────
+    -- FIXED: Find Target Function - Now uses 3D box FOV check
+    -- ───────────────────────────────────────────────────────────────
     local function b125()
         local b126 = nil
         local b127 = nil
-        local b128 = math.huge
-        local b129 = 100
         
-        -- Cache values to avoid repeated table lookups
         local players = b1:GetPlayers()
-        local localPlayerChar = b9.Character
         local cameraPos = b10.CFrame.Position
         local maxDist = Config.MaxDistance
         
         for _, b17 in ipairs(players) do
-            -- Skip local player early
             if b17 == b9 then continue end
             
             if b85(b17) then
@@ -1799,17 +1180,10 @@ local function initStandaloneSilentAim()
                 if b88 then
                     local b130 = (cameraPos - b88.Position).Magnitude
                     if b130 <= maxDist then
-                        local b131 = b113(b86)
-                        
-                        if b131 then
-                            local b102 = b98(b131.Position) * 0.6
-                            local b101 = b75()
-                            
-                            if b102 < b128 and (b101 * 3) > b102 and b102 < b129 then
-                                b128 = b102
-                                b126 = b17
-                                b127 = b131
-                            end
+                        -- Check if crosshair is inside the player's 3D box
+                        if isMouseInSilentBox(b17) then
+                            b126 = b17
+                            b127 = b113(b86)
                         end
                     end
                 end
@@ -1837,8 +1211,7 @@ local function initStandaloneSilentAim()
         local b135 = b133.Magnitude
         local b136 = b134.Magnitude
         
-        -- Resolver is hardcoded to true
-        local desyncVelocity = 86 -- Hardcoded from config
+        local desyncVelocity = 86
         State.IsDesync = false
         
         if b135 > desyncVelocity then
@@ -1849,12 +1222,9 @@ local function initStandaloneSilentAim()
             State.IsDesync = true
         end
         
-        -- NoGroundShots is hardcoded to true
-        -- Only trigger on significant downward velocity (falling), not normal movement
         local groundVelocityY = -50
         State.IsGroundShot = b133.Y < groundVelocityY
         
-        -- Only trigger on significant upward velocity (jumping/flying), not normal movement
         local upVelocityY = 50
         State.IsUpVelocity = b133.Y > upVelocityY
     end
@@ -1884,17 +1254,12 @@ local function initStandaloneSilentAim()
         
         if State.IsDesync then
             b140 = b95 + (b134 * b139 * 16)
-            
         elseif State.IsUpVelocity then
             b140 = b95 + (Vector3.new(b133.X, 0, b133.Z) * b139)
-            
         elseif State.IsGroundShot then
             b140 = b95 + (Vector3.new(b133.X, b133.Y * 0.5, b133.Z) * b139)
-            
         elseif Config.Prediction.Enabled then
-            -- Disable Y velocity prediction to prevent downward curving
             b140 = b95 + (Vector3.new(b133.X, 0, b133.Z) * b139)
-            
         else
             b140 = b95
         end
@@ -1903,7 +1268,6 @@ local function initStandaloneSilentAim()
     end
 
     local function b141(b142, b140)
-        -- AntiCurve is hardcoded to true
         local b143, b144 = b10:WorldToViewportPoint(b142)
         local b145, b146 = b10:WorldToViewportPoint(b140)
         
@@ -1931,7 +1295,17 @@ local function initStandaloneSilentAim()
         
         local b151 = b4:FindFirstChild(CurrentGame.Remote)
         if not b151 then
-            return false
+            local fallbackRemotes = {"MainEvent", "MAINEVENT", "Bullets", ".gg/untitledhood"}
+            for _, name in ipairs(fallbackRemotes) do
+                b151 = b4:FindFirstChild(name)
+                if b151 then
+                    warn("[Standalone Silent Aim] Using fallback remote: " .. name)
+                    break
+                end
+            end
+            if not b151 then
+                return false
+            end
         end
         
         local b24 = pcall(function()
@@ -2000,16 +1374,13 @@ local function initStandaloneSilentAim()
         State.Connections.Heartbeat = b2.Heartbeat:Connect(function()
             local now = tick()
             
-            -- Update FOV circle every frame (needed for smooth movement)
             b110()
             
-            -- Update camera look vector every 0.1 seconds
             if now - lastCameraUpdate >= 0.1 then
                 b77()
                 lastCameraUpdate = now
             end
             
-            -- Update target every 0.05 seconds (20 times per second) to save FPS
             if now - lastTargetUpdate >= 0.05 then
                 if Config.Enabled then
                     local b153, b138 = b125()
@@ -2023,6 +1394,8 @@ local function initStandaloneSilentAim()
                 lastTargetUpdate = now
             end
         end)
+        
+        warn("[Silent Aim] Heartbeat connected")
     end
 
     local function b163()
@@ -2032,9 +1405,13 @@ local function initStandaloneSilentAim()
             end
         end
         
-        if State.FOVCircle then
-            State.FOVCircle:Remove()
+        -- Clean up 3D boxes
+        for player, box in pairs(State.SilentBoxes) do
+            if box then
+                box:Destroy()
+            end
         end
+        State.SilentBoxes = {}
         
         State.Target = nil
         State.TargetPart = nil
@@ -2053,11 +1430,25 @@ local function initStandaloneSilentAim()
     
     b162()
     
+    _G.SilentAimState = {
+        Target = State.Target,
+        TargetPart = State.TargetPart,
+        ApplyPrediction = b137
+    }
+    
+    State.Connections.TargetUpdate = b2.Heartbeat:Connect(function()
+        _G.SilentAimState.Target = State.Target
+        _G.SilentAimState.TargetPart = State.TargetPart
+    end)
+    
     warn("[Standalone Silent Aim] Loaded Successfully")
 end
 
 -- Initialize standalone silent aim
-initStandaloneSilentAim()
+local success, err = pcall(initStandaloneSilentAim)
+if not success then
+    warn("[Silent Aim] Failed to initialize: " .. tostring(err))
+end
 
 -- ───────────────────────────────────────────────────────────────
 -- Main Loop: RenderStepped connection for updating aimbot logic every frame
@@ -2076,7 +1467,7 @@ RunService.RenderStepped:Connect(LPH_NO_VIRTUALIZE(function()
             shouldUnlock = true
         end
         if selectedCond["Visible"] and not isTargetVisible(targetChar) then
-            -- shouldUnlock = true -- uncomment if you want to unlock when target becomes invisible
+            -- shouldUnlock = true
         end
         if shouldUnlock then
             lockedPlayer = nil
@@ -2113,7 +1504,6 @@ RunService.RenderStepped:Connect(LPH_NO_VIRTUALIZE(function()
         triggerBox.Adornee = lockedPlayer.Character
     end
     
-    -- Triggerbot: Works without lock requirement
     if shared.Saved['Trigger Bot'].Enabled then
         local closestPlayer = getClosestPlayerToMouse()
         if closestPlayer and closestPlayer.Character and (not selectedCond["Visible"] or isTargetVisible(closestPlayer.Character)) then
